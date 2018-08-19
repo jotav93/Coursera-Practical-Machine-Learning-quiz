@@ -1,0 +1,83 @@
+---
+title: "Practical machine learning course project"
+author: "Joaquim Villen Benseny"
+date: "19 August 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+The following paper aims to predict a classification of excercises based on the utilisation of different accelerometers for different users. 
+
+## Data exploration
+
+### Data reading
+```{r}
+training <- read.csv('pml-training.csv', na.strings = c("NA", "#DIV/0!", ""))
+crossval <- read.csv('pml-testing.csv', na.strings = c("NA", "#DIV/0!", ""))
+```
+
+### Data cleaning
+```{r}
+library(caret)
+#remove entries with null values
+training<- training[, colSums(is.na(training)) == 0]
+crossval <- crossval[, colSums(is.na(crossval)) == 0] 
+
+#keep output
+classe <- training$classe
+
+#remove non relevant variables
+training<- training[, !(grepl("^X|timestamp|window", names(training)))]
+#remove non numeric variables
+training<- training[, sapply(training, is.numeric)]
+training$classe<- classe
+
+#splitting data in train test split
+inTrain <- createDataPartition(training$classe, p=0.60, list=F)
+training <- training[inTrain, ]
+testing <- training[-inTrain, ]
+
+#keep vector of predictors
+predictors <- colnames(testing)
+predictors <- predictors[!(predictors %in% c("classe"))]
+```
+
+## Data modeling
+
+A couple of different machine learning algorithms will be trained below (random forest and gradient boosting).
+```{r}
+library(rpart)
+mdl1 <- train(classe~.,data = training, method = 'rf', ntree = 10)
+mdl1
+```
+
+Showing the tree:
+```{r}
+library(rpart)
+library(rpart.plot)
+rtree<- rpart(classe ~ ., data=training, method="class")
+prp(rtree)
+```
+
+
+## Results and conclusions
+Test error
+```{r}
+pred <- predict(mdl1, testing)
+confusionMatrix(pred,testing$classe)$overall
+```
+
+```{r}
+error <- 1 - as.numeric(confusionMatrix(testing$classe, pred)$overall[1])
+```
+
+The results predicted for the test dataset are provided below:
+```{r}
+predict(mdl1,crossval[,predictors])
+```
+
+Therefore it is possible to conclude that the out of sample error of the random forest model trained above is around `r error`. The  model accuracy is around `r confusionMatrix(pred,testing$classe)$overall["Accuracy"]*100` 
